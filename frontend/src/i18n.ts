@@ -2,6 +2,10 @@ import type { Lang } from './types';
 
 export const TRANSLATIONS = {
   en: {
+    profileLike: 'LIKE',
+    profileDislike: 'DISLIKE',
+    voteCheat:'CHEATER', voteGreafer:'GRIEFER', voteDontLike: "JUST DON'T LIKE", voteToxic:'TOXIC',
+    voteCommand: 'Good Teammate', voteNice: 'Nice player', voteFriend: 'Friend material', voteMaster: 'Carry Gamer',
     heroH1:'PLAYER', heroH1Span:'INTELLIGENCE',
     heroP:'Enter any Steam profile URL to get full CS2 stats and FACEIT data instantly',
     inputPlaceholder:'https://steamcommunity.com/id/username/ or SteamID64',
@@ -42,8 +46,14 @@ export const TRANSLATIONS = {
     secRecent20:'FACEIT — LAST 20 MATCHES',
     secTopMaps:'TOP MAPS (FACEIT CS2)',
     secCsgo:'CS:GO — FACEIT HISTORY',
+    countViews:'VIEWS',
   },
   ru: {
+    profileLike: 'ЛАЙК',
+    profileDislike: 'ДИЗЛАЙК',
+    voteCheat:'Читер', voteGreafer:'ГРИФЕР', voteDontLike: "Просто не нравится", voteToxic:'Токсик',
+    voteCommand: 'Хороший тиммейт', voteNice: 'Приятный игрок', voteFriend: 'Это мой друг', voteMaster: 'Хорошо играет',
+    countViews:'КОЛ-ВО ПРОСМОТРОВ',
     heroH1:'АНАЛИЗ', heroH1Span:'ИГРОКА',
     heroP:'Введи ссылку на Steam профиль — получи полную статистику CS2 и FACEIT мгновенно',
     inputPlaceholder:'https://steamcommunity.com/id/username/ или SteamID64',
@@ -86,6 +96,11 @@ export const TRANSLATIONS = {
     secCsgo:'CS:GO — ИСТОРИЯ FACEIT',
   },
   es: {
+    profileLike: 'LIKE',
+    profileDislike: 'DISLIKE',
+    voteCheat:'CHEATER', voteGreafer:'GRIEFER', voteDontLike: "JUST DON'T LIKE", voteToxic:'TOXIC',
+    voteCommand: 'Good Teammate', voteNice: 'Nice player', voteFriend: 'Friend material', voteMaster: 'Carry Gamer',
+    countViews:'VIEWS',
     heroH1:'ANÁLISIS', heroH1Span:'DEL JUGADOR',
     heroP:'Introduce un enlace de Steam para obtener estadísticas completas de CS2 y FACEIT al instante',
     inputPlaceholder:'https://steamcommunity.com/id/usuario/ o SteamID64',

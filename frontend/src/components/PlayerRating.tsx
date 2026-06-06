@@ -1,19 +1,11 @@
 import { useState } from 'react';
 import type { Ratings } from '../types';
 import { ratePlayer, removeRating } from '../api';
+import { useLang } from '../useLang';
 
-const LIKE_REASONS  = [
-  'Хороший командный игрок',
-  'Хорошо играет',
-  'Просто приятный чел',
-  'Это мой друг',
-];
-const DISLIKE_REASONS = [
-  'Читер',
-  'Грифер',
-  'Мне он просто не нравится',
-  'Токсик',
-];
+
+
+
 
 interface Props {
   steamid64: string;
@@ -24,10 +16,23 @@ export default function PlayerRating({ steamid64, initial }: Props) {
   const [ratings, setRatings] = useState<Ratings>(initial);
   const [pending, setPending] = useState<'like' | 'dislike' | null>(null);
   const [loading, setLoading] = useState(false);
-
+  const { t } = useLang();
   const totalLikes    = Object.values(ratings.likes).reduce((a, b) => a + b, 0);
   const totalDislikes = Object.values(ratings.dislikes).reduce((a, b) => a + b, 0);
   const myVote        = ratings.myVote;
+
+  const LIKE_REASONS  = [
+  `${t.voteCommand}`,
+  `${t.voteNice}`,
+  `${t.voteFriend}`,
+  `${t.voteMaster}`,
+];
+const DISLIKE_REASONS = [
+  `${t.voteCheat}`,
+  `${t.voteGreafer}`,
+  `${t.voteDontLike}`,
+  `${t.voteToxic}`,
+];
 
   const handleVote = async (type: 'like' | 'dislike', reason: number) => {
     setLoading(true);
@@ -68,15 +73,6 @@ export default function PlayerRating({ steamid64, initial }: Props) {
       padding: '20px 24px',
       marginBottom: 2,
     }}>
-      {/* Header */}
-      <div style={{
-        fontFamily: 'Rajdhani, sans-serif',
-        fontSize: 13, fontWeight: 700,
-        letterSpacing: '0.2em', textTransform: 'uppercase',
-        color: 'var(--accent)', marginBottom: 16,
-      }}>
-        ОЦЕНИТЬ ИГРОКА
-      </div>
 
       {/* Existing rating stats */}
       {(totalLikes > 0 || totalDislikes > 0) && (
@@ -143,14 +139,14 @@ export default function PlayerRating({ steamid64, initial }: Props) {
         <div style={{ display: 'flex', gap: 10 }}>
           <VoteBtn
             icon="👍"
-            label="Лайк"
+            label={t.profileLike}
             color="var(--green)"
             onClick={() => setPending('like')}
             disabled={loading}
           />
           <VoteBtn
             icon="👎"
-            label="Дизлайк"
+            label={t.profileDislike}
             color="var(--red)"
             onClick={() => setPending('dislike')}
             disabled={loading}
@@ -161,9 +157,6 @@ export default function PlayerRating({ steamid64, initial }: Props) {
       {/* Reason picker */}
       {pending && !myVote && (
         <div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 10, letterSpacing: '0.04em' }}>
-            {pending === 'like' ? 'Почему тебе нравится этот игрок?' : 'Что не так с этим игроком?'}
-          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {(pending === 'like' ? LIKE_REASONS : DISLIKE_REASONS).map((reason, i) => (
               <button
@@ -202,7 +195,7 @@ export default function PlayerRating({ steamid64, initial }: Props) {
               letterSpacing: '0.06em',
             }}
           >
-            ← Отмена
+            ← BACK BUTTON
           </button>
         </div>
       )}
@@ -213,7 +206,7 @@ export default function PlayerRating({ steamid64, initial }: Props) {
           <div style={{
             fontSize: 13, color: 'var(--text2)', letterSpacing: '0.04em',
           }}>
-            Ты оценил:{' '}
+            YOU VOTED:{' '}
             <span style={{ color: accentColor(myVote.type), fontWeight: 700 }}>
               {myVote.type === 'like' ? '👍' : '👎'}{' '}
               {myVote.type === 'like'

@@ -16,20 +16,14 @@ export default function Header() {
       backdropFilter: 'blur(12px)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-          stroke="var(--accent)" strokeWidth="1.5">
-          <polygon points="12,2 22,8 22,16 12,22 2,16 2,8"/>
-          <circle cx="12" cy="12" r="3"/>
-          <line x1="12" y1="5" x2="12" y2="9"/>
-          <line x1="12" y1="15" x2="12" y2="19"/>
-        </svg>
-        <span style={{
+        
+        <a href="/" style={{
           fontFamily: 'Rajdhani, sans-serif',
           fontSize: 22, fontWeight: 700,
           letterSpacing: '0.12em', color: 'var(--text)',
         }}>
           VELIUM<span style={{ color: 'var(--accent)' }}>CS</span>
-        </span>
+        </a>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
