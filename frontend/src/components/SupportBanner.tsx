@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useLang } from '../useLang';
 
-const BOOSTY_URL  = 'https://boosty.to/veliumcs';
-const DISCORD_URL = 'https://discord.gg/veliumcs';
+const BOOSTY_URL  = 'https://boosty.to/velium';
 // Замени на реальную ссылку СБП от твоего банка (или base64 QR картинку)
 const SBP_QR_URL  = '/sbp-qr.png'; // положи файл в frontend/public/sbp-qr.png
 
@@ -68,7 +67,7 @@ export default function SupportBanner() {
                 href={BOOSTY_URL}
               />
             )}
-            <SupportBtn label="Discord" color="#5865f2" href={DISCORD_URL} />
+            
           </div>
         </div>
 
