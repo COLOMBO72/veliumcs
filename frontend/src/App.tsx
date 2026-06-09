@@ -253,7 +253,7 @@ function ShareBlock({ steamid64, nick }: { steamid64: string; nick: string }) {
         textTransform: 'uppercase', color: 'var(--text3)',
         flexShrink: 0,
       }}>
-        Поделиться
+        Share
       </div>
       <div style={{
         flex: 1, fontFamily: 'Share Tech Mono, monospace',
@@ -275,7 +275,7 @@ function ShareBlock({ steamid64, nick }: { steamid64: string; nick: string }) {
           transition: 'all 0.2s', flexShrink: 0,
         }}
       >
-        {copied ? '✓ СКОПИРОВАНО' : 'КОПИРОВАТЬ'}
+        {copied ? '✓ COPIED' : 'COPY'}
       </button>
     </div>
   );
@@ -317,7 +317,7 @@ export default function App() {
                 fontSize: 12, color: 'var(--accent)', textDecoration: 'none',
                 letterSpacing: '0.06em', borderBottom: '1px solid rgba(232,160,32,0.3)', paddingBottom: 1,
               }}>
-                Ознакомьтесь с нашими проектами →
+                BY VELIUM GROUP 
               </a>
             </div>
             <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', letterSpacing: '0.08em' }}>
@@ -325,7 +325,7 @@ export default function App() {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', color: 'var(--text3)', marginBottom: 6 }}>
-                Связаться с нами
+                CONTACTS:
               </div>
               <a href="mailto:estwoodbizn@gmail.com" style={{
                 fontFamily: 'Share Tech Mono, monospace', fontSize: 13,

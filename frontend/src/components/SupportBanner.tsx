@@ -7,12 +7,7 @@ const SBP_QR_URL  = '/sbp-qr.png'; // положи файл в frontend/public/s
 
 export default function SupportBanner() {
   const { lang } = useLang();
-  const [dismissed, setDismissed] = useState(() => {
-    try { return localStorage.getItem('veliumcs_support_v2') === '1'; } catch { return false; }
-  });
   const [showQR, setShowQR] = useState(false);
-
-  if (dismissed) return null;
 
   const isRu = lang === 'ru';
 
@@ -25,17 +20,7 @@ export default function SupportBanner() {
       borderLeft: '3px solid var(--accent)',
       padding: '18px 20px',
     }}>
-      <button
-        onClick={() => {
-          try { localStorage.setItem('veliumcs_support_v2', '1'); } catch {}
-          setDismissed(true);
-        }}
-        style={{
-          position: 'absolute', top: 8, right: 10,
-          background: 'none', border: 'none',
-          color: 'var(--text3)', cursor: 'pointer', fontSize: 14,
-        }}
-      >✕</button>
+      
 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
