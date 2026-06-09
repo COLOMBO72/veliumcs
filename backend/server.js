@@ -13,6 +13,26 @@ const STEAM_KEY  = process.env.STEAM_API_KEY;
 const FACEIT_KEY = process.env.FACEIT_API_KEY;
 const PORT       = process.env.PORT || 3001;
 
+// ── In-memory cache (no Redis needed) ───────────────────────
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+function cacheGet(key) {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) { cache.delete(key); return null; }
+  return entry.data;
+}
+
+function cacheSet(key, data) {
+  cache.set(key, { data, ts: Date.now() });
+  // Не даём кэшу расти бесконечно
+  if (cache.size > 500) {
+    const oldest = [...cache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+    cache.delete(oldest[0]);
+  }
+}
+
 // ── Simple JSON-file DB for ratings ────────────────────────
 const DB_PATH = path.join(__dirname, 'ratings.json');
 
@@ -89,7 +109,24 @@ app.get('/api/resolve', async (req, res) => {
 app.get('/api/player/:steamid64', async (req, res) => {
   const { steamid64 } = req.params;
   if (!/^\d{17}$/.test(steamid64)) return res.status(400).json({ error: 'Invalid SteamID64' });
-
+  // Check cache first
+  const cacheKey = `player:${steamid64}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) {
+    // Still update views even on cache hit
+    const db = loadDB();
+    if (!db.views) db.views = {};
+    db.views[steamid64] = (db.views[steamid64] || 0) + 1;
+    saveDB(db);
+    const clientId = getClientId(req);
+    const myVote = db.votes[`${clientId}:${steamid64}`] || null;
+    const ratings = db.ratings[steamid64] || { likes: {}, dislikes: {} };
+    return res.json({
+      ...cached,
+      viewCount: db.views[steamid64],
+      ratings: { likes: ratings.likes, dislikes: ratings.dislikes, myVote },
+    });
+  }
   try {
     const [summaryData, banData, statsData] = await Promise.allSettled([
       steamGet(`https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${STEAM_KEY}&steamids=${steamid64}`),
@@ -221,7 +258,12 @@ app.get('/api/player/:steamid64', async (req, res) => {
     const myVote = db.votes[`${clientId}:${steamid64}`] || null;
 
     saveDB(db);
-
+    // Cache the heavy API data (without user-specific fields)
+    cacheSet(cacheKey, {
+      profile, bans, cs2stats: stats,
+      faceit: faceitPlayer, faceitStats, faceitMatches,
+      faceitRecent20, faceitMaps, faceitCsgoStats,
+    });
     res.json({
       profile, bans, cs2stats: stats,
       faceit: faceitPlayer, faceitStats, faceitMatches,
@@ -292,6 +334,33 @@ app.delete('/api/rate/:steamid64', (req, res) => {
     saveDB(db);
   }
   res.json({ ok: true });
+});
+
+// ── Sitemap.xml ───────────────────────────────────────────────
+app.get('/sitemap.xml', (req, res) => {
+  const db = loadDB();
+  const baseUrl = process.env.SITE_URL || 'https://veliumcs.gg';
+  const steamids = Object.keys(db.views || {});
+
+  const urls = [
+    `<url><loc>${baseUrl}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
+    ...steamids.slice(0, 5000).map(id =>
+      `<url><loc>${baseUrl}/player/${id}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`
+    ),
+  ].join('\n');
+
+  res.header('Content-Type', 'application/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>`);
+});
+
+// ── robots.txt ────────────────────────────────────────────────
+app.get('/robots.txt', (req, res) => {
+  const baseUrl = process.env.SITE_URL || 'https://veliumcs.gg';
+  res.header('Content-Type', 'text/plain');
+  res.send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml\n`);
 });
 
 // ── health ───────────────────────────────────────────────────

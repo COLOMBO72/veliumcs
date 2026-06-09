@@ -226,7 +226,7 @@ const DISLIKE_REASONS = [
               padding: '4px 10px', cursor: 'pointer',
             }}
           >
-            Убрать
+            REMOVE
           </button>
         </div>
       )}
