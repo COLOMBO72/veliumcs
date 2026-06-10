@@ -1,26 +1,18 @@
+# Env files — NEVER commit
+**/.env
+**/.env.local
+**/.env.production
+
+# DB files
+backend/ratings.json
+tgbot/subscribers.json
+
+# Dependencies
+**/node_modules/
+
+# Build output
+frontend/dist/
+
 # Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-.env
-
+**/*.log
+pm2.log
