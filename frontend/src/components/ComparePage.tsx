@@ -444,7 +444,7 @@ function PlayerCard({
   );
 }
 
-function FaceitCompare({ a, b, t }: { a: PlayerData; b: PlayerData; t: any }) {
+function FaceitCompare({ a, b }: { a: PlayerData; b: PlayerData; t: any }) {
   const ga = a.faceit?.games?.cs2;
   const gb = b.faceit?.games?.cs2;
   const fa = a.faceitStats?.lifetime ?? {};
@@ -496,7 +496,7 @@ function FaceitCompare({ a, b, t }: { a: PlayerData; b: PlayerData; t: any }) {
   );
 }
 
-function StatsCompare({ a, b, t }: { a: PlayerData; b: PlayerData; t: any }) {
+function StatsCompare({ a, b }: { a: PlayerData; b: PlayerData; t: any }) {
   const sa = a.cs2stats || [];
   const sb = b.cs2stats || [];
   const g = (s: CS2Stat[], k: string) => getStat(s, k);
