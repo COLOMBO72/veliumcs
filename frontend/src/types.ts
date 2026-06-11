@@ -71,16 +71,16 @@ export interface FaceitMatch {
   };
   voting?: { map?: { pick?: string[] } };
   finished_at?: number;
-  elo_diff?: number | null;  // enriched by backend from match stats
+  elo_diff?: number | null; // enriched by backend from match stats
 }
 
 export interface RatingCounts {
   [reason: string]: number;
 }
 export interface Ratings {
-  likes:    RatingCounts;
+  likes: RatingCounts;
   dislikes: RatingCounts;
-  myVote:   { type: 'like' | 'dislike'; reason: number } | null;
+  myVote: { type: "like" | "dislike"; reason: number } | null;
 }
 
 // Per-player stats from /matches/{id}/stats
@@ -98,6 +98,7 @@ export interface PlayerData {
   faceitCsgoStats: FaceitStats | null;
   ratings: Ratings | null;
   viewCount: number;
+  tgLinked: { username: string | null; linkedAt: string } | null;
 }
 
-export type Lang = 'en' | 'ru' | 'es';
+export type Lang = "en" | "ru" | "es";

@@ -412,7 +412,7 @@ function PlayerCard({
           {game && (
             <span
               style={{
-                fontSize: 13,
+                fontSize: 20,
                 fontWeight: 700,
                 letterSpacing: "0.08em",
                 padding: "3px 10px",

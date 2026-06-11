@@ -4,6 +4,7 @@ const cors = require("cors");
 const fetch = require("node-fetch");
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
 
 const app = express();
 app.use(cors());
@@ -11,32 +12,31 @@ app.use(express.json());
 
 const STEAM_KEY = process.env.STEAM_API_KEY;
 const FACEIT_KEY = process.env.FACEIT_API_KEY;
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3005;
 
-// ── In-memory cache (no Redis needed) ───────────────────────
+// ── In-memory cache (5 min TTL) ─────────────────────────────
 const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+const CACHE_TTL = 5 * 60 * 1000;
 
 function cacheGet(key) {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > CACHE_TTL) {
+  const e = cache.get(key);
+  if (!e) return null;
+  if (Date.now() - e.ts > CACHE_TTL) {
     cache.delete(key);
     return null;
   }
-  return entry.data;
+  return e.data;
 }
 
 function cacheSet(key, data) {
   cache.set(key, { data, ts: Date.now() });
-  // Не даём кэшу расти бесконечно
   if (cache.size > 500) {
     const oldest = [...cache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
     cache.delete(oldest[0]);
   }
 }
 
-// ── Simple JSON-file DB for ratings ────────────────────────
+// ── JSON file DB ─────────────────────────────────────────────
 const DB_PATH = path.join(__dirname, "ratings.json");
 
 function loadDB() {
@@ -51,29 +51,24 @@ function saveDB(db) {
   fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
 }
 
-// ── helpers ─────────────────────────────────────────────────
-async function steamGet(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Steam API ${r.status}`);
-  return r.json();
+// Subscribers from tgbot (shared file)
+const SUBS_PATH = path.join(__dirname, "../tgbot/subscribers.json");
+
+function loadSubs() {
+  try {
+    if (fs.existsSync(SUBS_PATH))
+      return JSON.parse(fs.readFileSync(SUBS_PATH, "utf8"));
+  } catch {}
+  return {};
 }
 
-async function faceitGet(path) {
-  const r = await fetch(`https://open.faceit.com/data/v4${path}`, {
-    headers: { Authorization: `Bearer ${FACEIT_KEY}` },
-  });
-  if (!r.ok) throw new Error(`FACEIT ${r.status}: ${path}`);
-  return r.json();
-}
-
+// ── Client fingerprint for rate limiting ─────────────────────
 function getClientId(req) {
-  // Combine IP + User-Agent for fingerprinting (no registration needed)
   const ip =
     req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
     req.socket?.remoteAddress ||
     "unknown";
   const ua = req.headers["user-agent"] || "";
-  // Simple hash
   let hash = 0;
   for (const c of ip + "|" + ua) {
     hash = (hash << 5) - hash + c.charCodeAt(0);
@@ -82,7 +77,22 @@ function getClientId(req) {
   return String(Math.abs(hash));
 }
 
-// ── resolve ──────────────────────────────────────────────────
+// ── API helpers ──────────────────────────────────────────────
+async function steamGet(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Steam API ${r.status}`);
+  return r.json();
+}
+
+async function faceitGet(p) {
+  const r = await fetch(`https://open.faceit.com/data/v4${p}`, {
+    headers: { Authorization: `Bearer ${FACEIT_KEY}` },
+  });
+  if (!r.ok) throw new Error(`FACEIT ${r.status}: ${p}`);
+  return r.json();
+}
+
+// ── /api/resolve ─────────────────────────────────────────────
 app.get("/api/resolve", async (req, res) => {
   try {
     const { input } = req.query;
@@ -113,43 +123,45 @@ app.get("/api/resolve", async (req, res) => {
   }
 });
 
-// ── full player data ─────────────────────────────────────────
+// ── /api/player/:steamid64 ───────────────────────────────────
 app.get("/api/player/:steamid64", async (req, res) => {
   const { steamid64 } = req.params;
   if (!/^\d{17}$/.test(steamid64))
     return res.status(400).json({ error: "Invalid SteamID64" });
-  // Check cache first
-  const cacheKey = `player:${steamid64}`;
-  const cached = cacheGet(cacheKey);
-  if (cached) {
-    // Still update views even on cache hit
+
+  try {
+    // ── Views counter ──
     const db = loadDB();
     if (!db.views) db.views = {};
     db.views[steamid64] = (db.views[steamid64] || 0) + 1;
+    const viewCount = db.views[steamid64];
     saveDB(db);
-    // Notify Telegram bot if player has linked account
-    if (process.env.BOT_NOTIFY_URL) {
-      fetch(process.env.BOT_NOTIFY_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          secret: process.env.NOTIFY_SECRET || "veliumcs_notify_secret",
-          steamid: steamid64,
-          type,
-          reason,
-        }),
-      }).catch(() => {}); // fire and forget, не блокируем ответ
-    }
-    const clientId = getClientId(req);
-    const myVote = db.votes[`${clientId}:${steamid64}`] || null;
+
+    // ── Ratings ──
     const ratings = db.ratings[steamid64] || { likes: {}, dislikes: {} };
-    return res.json({
-      ...cached,
-      viewCount: db.views[steamid64],
-      ratings: { likes: ratings.likes, dislikes: ratings.dislikes, myVote },
-    });
-  }
-  try {
+    const clientId = getClientId(req);
+    const myVote = db.votes?.[`${clientId}:${steamid64}`] || null;
+
+    // ── TG linked ──
+    const subs = loadSubs();
+    const tgLinked =
+      Object.values(subs).find((s) => s.steamid === steamid64) || null;
+
+    // ── Check cache (skip heavy API calls) ──
+    const cacheKey = `player:${steamid64}`;
+    const cached = cacheGet(cacheKey);
+    if (cached) {
+      return res.json({
+        ...cached,
+        viewCount,
+        ratings: { likes: ratings.likes, dislikes: ratings.dislikes, myVote },
+        tgLinked: tgLinked
+          ? { username: tgLinked.tgUsername, linkedAt: tgLinked.linkedAt }
+          : null,
+      });
+    }
+
+    // ── Steam calls ──
     const [summaryData, banData, statsData] = await Promise.allSettled([
       steamGet(
         `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${STEAM_KEY}&steamids=${steamid64}`,
@@ -169,6 +181,7 @@ app.get("/api/player/:steamid64", async (req, res) => {
     const bans = banData.value?.players?.[0] ?? {};
     const stats = statsData.value?.playerstats?.stats ?? null;
 
+    // ── FACEIT calls ──
     let faceitPlayer = null;
     let faceitStats = null;
     let faceitMatches = null;
@@ -190,11 +203,11 @@ app.get("/api/player/:steamid64", async (req, res) => {
           faceitGet(`/players/${pid}/stats/csgo`),
         ]);
 
-        const cs2StatsData = fStats.value ?? null;
-        faceitStats = cs2StatsData;
+        faceitStats = fStats.value ?? null;
 
-        if (cs2StatsData?.segments) {
-          faceitMaps = cs2StatsData.segments
+        // Map segments
+        if (faceitStats?.segments) {
+          faceitMaps = faceitStats.segments
             .filter(
               (s) => s.type === "map" || (s.label && s.label.startsWith("de_")),
             )
@@ -207,8 +220,10 @@ app.get("/api/player/:steamid64", async (req, res) => {
         }
 
         const historyItems = fHistory20.value?.items ?? null;
+        const level = faceitPlayer?.games?.cs2?.skill_level ?? 5;
 
         if (historyItems?.length) {
+          // Fetch match stats for first 10
           const matchStatsResults = await Promise.allSettled(
             historyItems
               .slice(0, 10)
@@ -236,23 +251,32 @@ app.get("/api/player/:steamid64", async (req, res) => {
             }
           });
 
-          const currentElo = faceitPlayer?.games?.cs2?.faceit_elo ?? 0;
-          const level = faceitPlayer?.games?.cs2?.skill_level ?? 5;
+          const avgEloChange =
+            level <= 2
+              ? 5
+              : level <= 4
+                ? 18
+                : level <= 6
+                  ? 23
+                  : level <= 8
+                    ? 25
+                    : 28;
 
           faceitMatches = historyItems.slice(0, 10).map((m, i) => {
             let elo_diff = null;
-            const rawEloNow = m.elo != null ? parseInt(String(m.elo)) : null;
-            const nextItem = historyItems[i + 1];
-            const rawEloPrev =
-              nextItem?.elo != null ? parseInt(String(nextItem.elo)) : null;
+            const rawNow = m.elo != null ? parseInt(String(m.elo)) : null;
+            const rawPrev =
+              historyItems[i + 1]?.elo != null
+                ? parseInt(String(historyItems[i + 1].elo))
+                : null;
 
             if (
-              rawEloNow != null &&
-              !isNaN(rawEloNow) &&
-              rawEloPrev != null &&
-              !isNaN(rawEloPrev)
+              rawNow != null &&
+              !isNaN(rawNow) &&
+              rawPrev != null &&
+              !isNaN(rawPrev)
             ) {
-              elo_diff = rawEloNow - rawEloPrev;
+              elo_diff = rawNow - rawPrev;
             } else {
               const ps = playerMatchStats[m.match_id];
               const won = ps
@@ -264,22 +288,13 @@ app.get("/api/player/:steamid64", async (req, res) => {
                     const myTeam = inF1 ? "faction1" : "faction2";
                     return m.results?.winner === myTeam;
                   })();
-              const gain =
-                level <= 2
-                  ? 5
-                  : level <= 4
-                    ? 18
-                    : level <= 6
-                      ? 23
-                      : level <= 8
-                        ? 25
-                        : 28;
-              elo_diff = won ? gain : -gain;
+              elo_diff = won ? avgEloChange : -avgEloChange;
             }
 
             return { ...m, elo_diff, map_pick: m.voting?.map?.pick?.[0] ?? "" };
           });
 
+          // Fetch remaining 10 for recent20
           if (historyItems.length > 10) {
             const extra = await Promise.allSettled(
               historyItems
@@ -306,22 +321,12 @@ app.get("/api/player/:steamid64", async (req, res) => {
 
         faceitCsgoStats = fCsgoStats.value ?? null;
       }
-    } catch (_) {}
+    } catch (_) {
+      /* no faceit account */
+    }
 
-    // Load ratings for this steamid
-    const db = loadDB();
-    if (!db.views) db.views = {};
-    db.views[steamid64] = (db.views[steamid64] || 0) + 1;
-    const viewCount = db.views[steamid64];
-
-    // Load ratings for this steamid
-    const ratings = db.ratings[steamid64] || { likes: {}, dislikes: {} };
-    const clientId = getClientId(req);
-    const myVote = db.votes[`${clientId}:${steamid64}`] || null;
-
-    saveDB(db);
-    // Cache the heavy API data (without user-specific fields)
-    cacheSet(cacheKey, {
+    // Cache the heavy data
+    const payload = {
       profile,
       bans,
       cs2stats: stats,
@@ -331,39 +336,30 @@ app.get("/api/player/:steamid64", async (req, res) => {
       faceitRecent20,
       faceitMaps,
       faceitCsgoStats,
-    });
+    };
+    cacheSet(cacheKey, payload);
+
     res.json({
-      profile,
-      bans,
-      cs2stats: stats,
-      faceit: faceitPlayer,
-      faceitStats,
-      faceitMatches,
-      faceitRecent20,
-      faceitMaps,
-      faceitCsgoStats,
-      ratings: {
-        likes: ratings.likes,
-        dislikes: ratings.dislikes,
-        myVote,
-      },
+      ...payload,
       viewCount,
+      ratings: { likes: ratings.likes, dislikes: ratings.dislikes, myVote },
+      tgLinked: tgLinked
+        ? { username: tgLinked.tgUsername, linkedAt: tgLinked.linkedAt }
+        : null,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// ── Rating endpoints ─────────────────────────────────────────
-
-// POST /api/rate/:steamid64  body: { type: 'like'|'dislike', reason: number }
+// ── /api/rate/:steamid64  POST ───────────────────────────────
 app.post("/api/rate/:steamid64", (req, res) => {
   const { steamid64 } = req.params;
   const { type, reason } = req.body;
 
   if (!/^\d{17}$/.test(steamid64))
     return res.status(400).json({ error: "Invalid SteamID64" });
-  if (!["like", "dislike"].includes(type))
+  if (!type || !["like", "dislike"].includes(type))
     return res.status(400).json({ error: "Invalid type" });
   if (typeof reason !== "number" || reason < 0 || reason > 3)
     return res.status(400).json({ error: "Invalid reason" });
@@ -376,26 +372,29 @@ app.post("/api/rate/:steamid64", (req, res) => {
     db.ratings[steamid64] = { likes: {}, dislikes: {} };
   if (!db.votes) db.votes = {};
 
+  // Remove old vote if exists
   const existing = db.votes[voteKey];
   if (existing) {
     const oldBucket = `${existing.type}s`;
-    const oldCount =
-      db.ratings[steamid64][oldBucket]?.[String(existing.reason)] || 0;
-    db.ratings[steamid64][oldBucket][String(existing.reason)] = Math.max(
+    const oldKey = String(existing.reason);
+    db.ratings[steamid64][oldBucket][oldKey] = Math.max(
       0,
-      oldCount - 1,
+      (db.ratings[steamid64][oldBucket][oldKey] || 0) - 1,
     );
   }
 
+  // Save new vote
   const bucket = `${type}s`;
-  db.ratings[steamid64][bucket][String(reason)] =
-    (db.ratings[steamid64][bucket][String(reason)] || 0) + 1;
+  const key = String(reason);
+  db.ratings[steamid64][bucket][key] =
+    (db.ratings[steamid64][bucket][key] || 0) + 1;
   db.votes[voteKey] = { type, reason };
   saveDB(db);
 
-  // Notify TG bot
-  if (process.env.BOT_NOTIFY_URL) {
-    fetch(process.env.BOT_NOTIFY_URL, {
+  // Notify TG bot — fire and forget, ONE notification only
+  const notifyUrl = process.env.BOT_NOTIFY_URL;
+  if (notifyUrl) {
+    fetch(notifyUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -414,7 +413,7 @@ app.post("/api/rate/:steamid64", (req, res) => {
   });
 });
 
-// DELETE /api/rate/:steamid64 — remove vote
+// ── /api/rate/:steamid64  DELETE ─────────────────────────────
 app.delete("/api/rate/:steamid64", (req, res) => {
   const { steamid64 } = req.params;
   const clientId = getClientId(req);
@@ -423,47 +422,47 @@ app.delete("/api/rate/:steamid64", (req, res) => {
   const db = loadDB();
   const existing = db.votes?.[voteKey];
   if (existing && db.ratings[steamid64]) {
-    const { type, reason } = existing;
-    const bucket = `${type}s`;
-    const old = db.ratings[steamid64][bucket][String(reason)] || 0;
-    db.ratings[steamid64][bucket][String(reason)] = Math.max(0, old - 1);
+    const bucket = `${existing.type}s`;
+    const key = String(existing.reason);
+    db.ratings[steamid64][bucket][key] = Math.max(
+      0,
+      (db.ratings[steamid64][bucket][key] || 0) - 1,
+    );
     delete db.votes[voteKey];
     saveDB(db);
   }
   res.json({ ok: true });
 });
 
-// ── Sitemap.xml ───────────────────────────────────────────────
+// ── Sitemap ──────────────────────────────────────────────────
 app.get("/sitemap.xml", (req, res) => {
   const db = loadDB();
-  const baseUrl = process.env.SITE_URL || "https://veliumcs.gg";
-  const steamids = Object.keys(db.views || {});
-
+  const baseUrl = process.env.SITE_URL || "https://veliumcs.su";
+  const ids = Object.keys(db.views || {});
   const urls = [
     `<url><loc>${baseUrl}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`,
-    ...steamids
+    `<url><loc>${baseUrl}/compare</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`,
+    ...ids
       .slice(0, 5000)
       .map(
         (id) =>
           `<url><loc>${baseUrl}/player/${id}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>`,
       ),
   ].join("\n");
-
   res.header("Content-Type", "application/xml");
-  res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
-</urlset>`);
+  res.send(
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`,
+  );
 });
 
-// ── robots.txt ────────────────────────────────────────────────
+// ── robots.txt ───────────────────────────────────────────────
 app.get("/robots.txt", (req, res) => {
-  const baseUrl = process.env.SITE_URL || "https://veliumcs.gg";
+  const baseUrl = process.env.SITE_URL || "https://veliumcs.su";
   res.header("Content-Type", "text/plain");
   res.send(`User-agent: *\nAllow: /\nSitemap: ${baseUrl}/sitemap.xml\n`);
 });
 
-// ── health ───────────────────────────────────────────────────
+// ── Health ───────────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => console.log(`VELIUMCS backend :${PORT}`));

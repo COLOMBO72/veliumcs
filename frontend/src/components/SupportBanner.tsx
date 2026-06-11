@@ -1,11 +1,9 @@
-import { useState } from "react";
 import { useLang } from "../useLang";
 
 const BOOSTY_URL = "https://boosty.to/velium";
 
 export default function SupportBanner() {
   const { lang } = useLang();
-  const [showQR, setShowQR] = useState(false);
 
   const isRu = lang === "ru";
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LangProvider, useLang } from "./useLang";
 import type { PlayerData } from "./types";
@@ -15,6 +15,7 @@ import ComparePage from "./components/ComparePage";
 
 const queryClient = new QueryClient();
 
+// ── Analytics ────────────────────────────────────────────────
 function track(event: string, data?: Record<string, string>) {
   try {
     const log = JSON.parse(localStorage.getItem("veliumcs_analytics") || "[]");
@@ -23,25 +24,28 @@ function track(event: string, data?: Record<string, string>) {
   } catch {}
 }
 
+// ── URL helpers ──────────────────────────────────────────────
 function getPlayerFromUrl(): string | null {
   const m = location.pathname.match(/^\/player\/(.+)$/);
   return m ? decodeURIComponent(m[1]) : null;
 }
+
 function setPlayerUrl(id: string) {
   history.pushState({}, "", `/player/${encodeURIComponent(id)}`);
 }
+
 function clearPlayerUrl() {
   history.pushState({}, "", "/");
 }
 
-// ── Router ───────────────────────────────────────────────────
+// ── Page type ────────────────────────────────────────────────
 type Page = "home" | "compare";
 
 function getPage(): Page {
-  if (location.pathname.startsWith("/compare")) return "compare";
-  return "home";
+  return location.pathname.startsWith("/compare") ? "compare" : "home";
 }
 
+// ── Router ───────────────────────────────────────────────────
 function Router() {
   const [page, setPage] = useState<Page>(getPage);
 
@@ -62,35 +66,81 @@ function HomePage() {
   const [error, setError] = useState("");
   const [data, setData] = useState<PlayerData | null>(null);
 
-  useEffect(() => {
-    // Restore last search from session if no URL slug
-    const slug = getPlayerFromUrl();
-    if (slug) {
-      track("page_view", { type: "player_url" });
-      handleSearch(slug, false);
-    } else {
-      // Try restore from sessionStorage
-      const saved = sessionStorage.getItem("veliumcs_last_id64");
-      if (saved) {
-        history.replaceState({}, "", `/player/${saved}`);
-        handleSearch(saved, false);
-      } else {
-        track("page_view", { type: "home" });
-      }
-    }
+  // handleSearch wrapped in useCallback so useEffect can depend on it safely
+  const handleSearch = useCallback(
+    async (input: string, updateUrl = true) => {
+      setError("");
+      setData(null);
+      setLoading(true);
+      if (updateUrl) setPlayerUrl(input);
+      track("search", { input: input.slice(0, 60) });
 
+      try {
+        let id64: string;
+        try {
+          id64 = await resolvePlayer(input);
+        } catch (e: any) {
+          throw new Error(e?.response?.data?.error || t.errNotFound);
+        }
+
+        let player: PlayerData;
+        try {
+          player = await fetchPlayer(id64);
+        } catch (e: any) {
+          throw new Error(e?.response?.data?.error || t.errGeneric);
+        }
+
+        setData(player);
+        // Always update URL to canonical steamid64
+        history.replaceState({}, "", `/player/${id64}`);
+        // Save to sessionStorage for refresh persistence
+        sessionStorage.setItem("veliumcs_last_id64", id64);
+        track("profile_loaded", { steamid64: id64 });
+      } catch (e: any) {
+        setError(e.message || t.errGeneric);
+        if (updateUrl) clearPlayerUrl();
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
+
+  // On mount: load from URL or sessionStorage
+  useEffect(() => {
+    const urlSlug = getPlayerFromUrl();
+    if (urlSlug) {
+      track("page_view", { type: "player_url" });
+      handleSearch(urlSlug, false);
+      return;
+    }
+    // Restore last viewed profile on refresh
+    const saved = sessionStorage.getItem("veliumcs_last_id64");
+    if (saved) {
+      history.replaceState({}, "", `/player/${saved}`);
+      handleSearch(saved, false);
+      return;
+    }
+    track("page_view", { type: "home" });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Browser back/forward
+  useEffect(() => {
     const onPop = () => {
-      const s = getPlayerFromUrl();
-      if (s) handleSearch(s, false);
-      else {
+      const slug = getPlayerFromUrl();
+      if (slug) {
+        handleSearch(slug, false);
+      } else {
         setData(null);
         setError("");
+        sessionStorage.removeItem("veliumcs_last_id64");
       }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, []);
+  }, [handleSearch]);
 
+  // Page title
   useEffect(() => {
     if (!data) {
       document.title = "VELIUMCS — CS2 Player Stats & FACEIT ELO Tracker";
@@ -104,39 +154,9 @@ function HomePage() {
       : `${nick} CS2 Stats | VELIUMCS`;
   }, [data]);
 
-  const handleSearch = async (input: string, updateUrl = true) => {
-    setError("");
-    setData(null);
-    setLoading(true);
-    if (updateUrl) setPlayerUrl(input);
-    track("search", { input: input.slice(0, 60) });
-    try {
-      let id64: string;
-      try {
-        id64 = await resolvePlayer(input);
-      } catch (e: any) {
-        throw new Error(e?.response?.data?.error || t.errNotFound);
-      }
-      let player: PlayerData;
-      try {
-        player = await fetchPlayer(id64);
-      } catch (e: any) {
-        throw new Error(e?.response?.data?.error || t.errGeneric);
-      }
-      setData(player);
-      if (updateUrl) setPlayerUrl(id64);
-      sessionStorage.setItem("veliumcs_last_id64", id64);
-      track("profile_loaded", { steamid64: id64 });
-    } catch (e: any) {
-      setError(e.message || t.errGeneric);
-      if (updateUrl) clearPlayerUrl();
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div style={{ position: "relative", zIndex: 1 }}>
+      {/* Hero + search */}
       <section
         style={{
           padding: data ? "32px 2rem 24px" : "80px 2rem 60px",
@@ -146,7 +166,7 @@ function HomePage() {
           transition: "padding 0.3s ease",
         }}
       >
-        {!data && (
+        {!data && !loading && (
           <>
             <div
               style={{
@@ -184,7 +204,7 @@ function HomePage() {
             <h1
               style={{
                 fontFamily: "Rajdhani, sans-serif",
-                fontSize: "clamp(42px,7vw,72px)",
+                fontSize: "clamp(42px, 7vw, 72px)",
                 fontWeight: 700,
                 letterSpacing: "0.05em",
                 lineHeight: 1,
@@ -210,9 +230,14 @@ function HomePage() {
             </p>
           </>
         )}
-        <SearchBar onSearch={handleSearch} loading={loading} error={error} />
+        <SearchBar
+          onSearch={(v) => handleSearch(v, true)}
+          loading={loading}
+          error={error}
+        />
       </section>
 
+      {/* Loading bar */}
       {loading && (
         <div
           style={{
@@ -228,7 +253,8 @@ function HomePage() {
           <div
             style={{
               height: "100%",
-              background: "linear-gradient(90deg,var(--accent),var(--orange))",
+              background:
+                "linear-gradient(90deg, var(--accent), var(--orange))",
               animation: "loadBar 1.2s ease-in-out infinite",
             }}
           />
@@ -236,6 +262,7 @@ function HomePage() {
         </div>
       )}
 
+      {/* Results */}
       {!loading && data && (
         <div
           style={{ maxWidth: 1100, margin: "0 auto", padding: "0 2rem 80px" }}
@@ -245,8 +272,11 @@ function HomePage() {
             bans={data.bans}
             faceit={data.faceit}
             viewCount={data.viewCount}
+            tgLinked={data.tgLinked}
           />
+
           <SupportBanner />
+
           {data.ratings && (
             <PlayerRating
               steamid64={data.profile.steamid}
@@ -254,6 +284,7 @@ function HomePage() {
             />
           )}
 
+          {/* FACEIT first */}
           {data.faceit?.games?.cs2 ? (
             <FaceitPanel
               faceit={data.faceit}
@@ -273,6 +304,7 @@ function HomePage() {
             </div>
           )}
 
+          {/* CS2 stats second */}
           {data.cs2stats && data.cs2stats.length > 0 ? (
             <CS2Stats stats={data.cs2stats} />
           ) : (
@@ -289,6 +321,7 @@ function HomePage() {
         </div>
       )}
 
+      {/* SEO section on empty state */}
       {!loading && !data && (
         <div
           style={{ maxWidth: 1100, margin: "0 auto", padding: "0 2rem 80px" }}
@@ -300,6 +333,7 @@ function HomePage() {
   );
 }
 
+// ── Share block ──────────────────────────────────────────────
 function ShareBlock({ steamid64 }: { steamid64: string }) {
   const [copied, setCopied] = useState(false);
   const url = `${location.origin}/player/${steamid64}`;
@@ -326,7 +360,7 @@ function ShareBlock({ steamid64 }: { steamid64: string }) {
           flexShrink: 0,
         }}
       >
-        Поделиться
+        SHARE
       </div>
       <div
         style={{
@@ -369,6 +403,7 @@ function ShareBlock({ steamid64 }: { steamid64: string }) {
   );
 }
 
+// ── App root ─────────────────────────────────────────────────
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -472,7 +507,7 @@ export default function App() {
                   marginBottom: 6,
                 }}
               >
-                Связаться с нами
+                CONTACT US
               </div>
               <a
                 href="mailto:estwoodbizn@gmail.com"
