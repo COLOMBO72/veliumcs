@@ -76,12 +76,12 @@ export default function Header() {
         {/* Nav links */}
         <nav style={{ display: "flex", gap: 4 }}>
           <NavBtn
-            label="Поиск"
+            label="Search"
             active={!isCompare}
             onClick={() => navigate("/")}
           />
           <NavBtn
-            label="⚔ Сравнение"
+            label="⚔ Compare"
             active={isCompare}
             onClick={() => navigate("/compare")}
             accent
@@ -158,7 +158,7 @@ function NavBtn({
       onClick={onClick}
       style={{
         fontFamily: "Barlow Condensed, sans-serif",
-        fontSize: 13,
+        fontSize: 16,
         fontWeight: 600,
         letterSpacing: "0.1em",
         textTransform: "uppercase",

@@ -397,7 +397,7 @@ function ShareBlock({ steamid64 }: { steamid64: string }) {
           flexShrink: 0,
         }}
       >
-        {copied ? "✓ СКОПИРОВАНО" : "КОПИРОВАТЬ"}
+        {copied ? "✓ COPIED" : "COPY"}
       </button>
     </div>
   );
@@ -470,21 +470,6 @@ export default function App() {
                   FACEIT Data API v4
                 </span>
               </div>
-              <a
-                href="https://velium.ru"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  fontSize: 12,
-                  color: "var(--accent)",
-                  textDecoration: "none",
-                  letterSpacing: "0.06em",
-                  borderBottom: "1px solid rgba(232,160,32,0.3)",
-                  paddingBottom: 1,
-                }}
-              >
-                Ознакомьтесь с нашими проектами →
-              </a>
             </div>
             <div
               style={{
