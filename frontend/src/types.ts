@@ -45,6 +45,7 @@ export interface FaceitPlayer {
 }
 
 export interface FaceitSegment {
+  mode: any;
   label: string;
   type?: string;
   img_small?: string;

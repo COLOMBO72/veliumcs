@@ -8,7 +8,9 @@ import SearchBar from "./components/SearchBar";
 import ProfileHeader from "./components/ProfileHeader";
 import CS2Stats from "./components/CS2Stats";
 import FaceitPanel from "./components/FaceitPanel";
+import TgBanner from "./components/TgBanner";
 import SeoSection from "./components/SeoSection";
+import CheatMeter from "./components/CheatMeter";
 import SupportBanner from "./components/SupportBanner";
 import PlayerRating from "./components/PlayerRating";
 import ComparePage from "./components/ComparePage";
@@ -275,7 +277,13 @@ function HomePage() {
             tgLinked={data.tgLinked}
           />
 
+          {/* Cheat meter — показывать только если есть CS2 stats */}
+          {/* {data.cs2stats && data.cs2stats.length > 0 && (
+            <CheatMeter stats={data.cs2stats} />
+          )} */}
+
           <SupportBanner />
+          <TgBanner steamid64={data.profile.steamid} />
 
           {data.ratings && (
             <PlayerRating

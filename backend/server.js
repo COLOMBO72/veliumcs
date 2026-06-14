@@ -44,7 +44,7 @@ function loadDB() {
     if (fs.existsSync(DB_PATH))
       return JSON.parse(fs.readFileSync(DB_PATH, "utf8"));
   } catch {}
-  return { ratings: {}, votes: {}, views: {} };
+  return { ratings: {}, votes: {}, views: {}, totalVisits: 0 };
 }
 
 function saveDB(db) {
@@ -134,6 +134,7 @@ app.get("/api/player/:steamid64", async (req, res) => {
     const db = loadDB();
     if (!db.views) db.views = {};
     db.views[steamid64] = (db.views[steamid64] || 0) + 1;
+    db.totalVisits = (db.totalVisits || 0) + 1;
     const viewCount = db.views[steamid64];
     saveDB(db);
 
@@ -180,7 +181,29 @@ app.get("/api/player/:steamid64", async (req, res) => {
 
     const bans = banData.value?.players?.[0] ?? {};
     const stats = statsData.value?.playerstats?.stats ?? null;
-
+    if (stats) {
+      console.log("=== STEAM CS2 STATS KEYS ===");
+      console.log("Total keys:", stats.length);
+      // Фильтруй интересные
+      stats
+        .filter(
+          (s) =>
+            s.name.includes("blind") ||
+            s.name.includes("smoke") ||
+            s.name.includes("wall") ||
+            s.name.includes("noscope") ||
+            s.name.includes("zoom") ||
+            s.name.includes("knife") ||
+            s.name.includes("damage") ||
+            s.name.includes("rounds") ||
+            s.name.includes("matches"),
+        )
+        .forEach((s) => console.log(s.name, "=", s.value));
+      console.log("=== MAP KEYS ===");
+      stats
+        .filter((s) => s.name.includes("map"))
+        .forEach((s) => console.log(s.name, "=", s.value));
+    }
     // ── FACEIT calls ──
     let faceitPlayer = null;
     let faceitStats = null;
@@ -204,7 +227,19 @@ app.get("/api/player/:steamid64", async (req, res) => {
         ]);
 
         faceitStats = fStats.value ?? null;
-
+        if (faceitStats) {
+          console.log("=== FACEIT LIFETIME ===", faceitStats.lifetime);
+          console.log(
+            "=== FACEIT SEGMENTS count ===",
+            faceitStats.segments?.length,
+          );
+          if (faceitStats.segments?.[0]) {
+            console.log(
+              "=== FIRST SEGMENT SAMPLE ===",
+              JSON.stringify(faceitStats.segments[0], null, 2),
+            );
+          }
+        }
         // Map segments
         if (faceitStats?.segments) {
           faceitMaps = faceitStats.segments
@@ -262,7 +297,7 @@ app.get("/api/player/:steamid64", async (req, res) => {
                     ? 25
                     : 28;
 
-          faceitMatches = historyItems.slice(0, 10).map((m, i) => {
+          faceitMatches = historyItems.slice(0, 20).map((m, i) => {
             let elo_diff = null;
             const rawNow = m.elo != null ? parseInt(String(m.elo)) : null;
             const rawPrev =

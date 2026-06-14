@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { CS2Stat } from "../types";
 import { getStat } from "../utils";
 import { useLang } from "../useLang";
@@ -9,44 +10,52 @@ interface Props {
 export default function CS2Stats({ stats }: Props) {
   const { t } = useLang();
 
-  // ── Confirmed CS2/CSGO Steam API keys (verified from real API response) ──
-  const kills = getStat(stats, "total_kills"); // total kills all-time
-  const deaths = getStat(stats, "total_deaths"); // total deaths
-  const matchesWon = getStat(stats, "total_matches_won"); // match wins (correct key!)
-  const matchesPlay = getStat(stats, "total_matches_played"); // total matches played
-  const roundsPlay = getStat(stats, "total_rounds_played"); // total rounds played
-  const hsKills = getStat(stats, "total_kills_headshot"); // headshot kills
-  const mvps = getStat(stats, "total_mvps"); // MVP stars
-  const dmgDone = getStat(stats, "total_damage_done"); // total damage
-  const shotsFired = getStat(stats, "total_shots_fired"); // shots fired
-  const shotsHit = getStat(stats, "total_shots_hit"); // shots hit
-  const timePlayed = getStat(stats, "total_time_played"); // seconds played
-  const bombsPlant = getStat(stats, "total_planted_bombs"); // bombs planted
-  const bombsDefu = getStat(stats, "total_defused_bombs"); // bombs defused
+  const kills = getStat(stats, "total_kills");
+  const deaths = getStat(stats, "total_deaths");
+  const matchesWon = getStat(stats, "total_matches_won");
+  const matchesPlay = getStat(stats, "total_matches_played");
+  const roundsPlay = getStat(stats, "total_rounds_played");
+  const hsKills = getStat(stats, "total_kills_headshot");
+  const mvps = getStat(stats, "total_mvps");
+  const dmgDone = getStat(stats, "total_damage_done");
+  const shotsFired = getStat(stats, "total_shots_fired");
+  const shotsHit = getStat(stats, "total_shots_hit");
+  const timePlayed = getStat(stats, "total_time_played");
+  const bombsPlant = getStat(stats, "total_planted_bombs");
+  const bombsDefu = getStat(stats, "total_defused_bombs");
 
-  // ── Calculations ──
-  const kd = deaths > 0 ? kills / deaths : kills;
-  const kdStr = kd.toFixed(2);
+  // Читерство-релевантные
+  const killsBlinded = getStat(stats, "total_kills_enemy_blinded"); // убийства ослеплённых
+  const killsZoomed = getStat(stats, "total_kills_against_zoomed_sniper"); // убийства vs AWP
+  const killsEnemyWep = getStat(stats, "total_kills_enemy_weapon"); // чужим оружием
+  const knifeFights = getStat(stats, "total_kills_knife_fight");
+
+  const kd = deaths > 0 ? kills / deaths : 0;
   const kdCls = kd >= 1.5 ? "good" : kd < 1 ? "danger" : "";
 
-  const hsPct = kills > 0 ? Math.round((hsKills / kills) * 100) : 0;
+  const hsPct = kills > 0 ? (hsKills / kills) * 100 : 0;
   const hsCls = hsPct >= 50 ? "good" : hsPct >= 40 ? "warn" : "";
 
-  // Win Rate — use total_matches_won / total_matches_played (both confirmed in API)
-  const wr = matchesPlay > 0 ? Math.round((matchesWon / matchesPlay) * 100) : 0;
+  const wr =
+    matchesPlay > 0 && matchesWon <= matchesPlay
+      ? (matchesWon / matchesPlay) * 100
+      : 0;
+
   const wrCls = wr >= 55 ? "good" : wr >= 50 ? "warn" : "";
 
-  // ADR — damage / rounds (both confirmed in API)
-  const adr = roundsPlay > 0 ? Math.round(dmgDone / roundsPlay) : 0;
+  const adrRaw = roundsPlay > 0 && dmgDone > 0 ? dmgDone / roundsPlay : 0;
+
+  const adr = adrRaw > 0 && adrRaw < 200 ? adrRaw : 0;
+
   const adrCls = adr >= 90 ? "good" : adr >= 70 ? "warn" : "";
 
-  // Accuracy — shots_hit / shots_fired
-  const acc = shotsFired > 0 ? Math.round((shotsHit / shotsFired) * 100) : 0;
+  const acc =
+    shotsFired > 0 && shotsHit <= shotsFired
+      ? (shotsHit / shotsFired) * 100
+      : 0;
 
-  // Hours
-  const hrs = Math.round(timePlayed / 3600);
-
-  // ── Weapons — top 8 by kills (all keys confirmed in API) ──
+  const hrs = timePlayed > 0 ? Math.round(timePlayed / 3600) : 0;
+  // ── Weapons ──
   const weapons = [
     { key: "total_kills_ak47", name: "AK-47" },
     { key: "total_kills_m4a1", name: "M4A1-S / M4A4" },
@@ -64,15 +73,10 @@ export default function CS2Stats({ stats }: Props) {
     { key: "total_kills_mac10", name: "MAC-10" },
     { key: "total_kills_mp9", name: "MP9" },
     { key: "total_kills_p90", name: "P90" },
-    { key: "total_kills_mp7", name: "MP7" },
     { key: "total_kills_ump45", name: "UMP-45" },
     { key: "total_kills_nova", name: "Nova" },
     { key: "total_kills_xm1014", name: "XM1014" },
-    { key: "total_kills_mag7", name: "MAG-7" },
     { key: "total_kills_negev", name: "Negev" },
-    { key: "total_kills_m249", name: "M249" },
-    { key: "total_kills_scar20", name: "SCAR-20" },
-    { key: "total_kills_g3sg1", name: "G3SG1" },
     { key: "total_kills_knife", name: "Knife" },
     { key: "total_kills_hegrenade", name: "HE Grenade" },
     { key: "total_kills_molotov", name: "Molotov" },
@@ -83,12 +87,18 @@ export default function CS2Stats({ stats }: Props) {
     .sort((a, b) => b.val - a.val)
     .slice(0, 8);
 
-  // ── Maps — wins + rounds played (both confirmed in API) ──
-  const mapList = [
+  // ── Maps — только ключи которые РЕАЛЬНО существуют в API ──
+  // Подтверждено из реального API ответа (total_wins_map_* и total_rounds_map_*)
+  const maps = [
     {
       wKey: "total_wins_map_de_dust2",
       rKey: "total_rounds_map_de_dust2",
       name: "Dust2",
+    },
+    {
+      wKey: "total_wins_map_de_mirage",
+      rKey: "total_rounds_map_de_mirage",
+      name: "Mirage",
     },
     {
       wKey: "total_wins_map_de_inferno",
@@ -106,6 +116,21 @@ export default function CS2Stats({ stats }: Props) {
       name: "Train",
     },
     {
+      wKey: "total_wins_map_de_overpass",
+      rKey: "total_rounds_map_de_overpass",
+      name: "Overpass",
+    },
+    {
+      wKey: "total_wins_map_de_ancient",
+      rKey: "total_rounds_map_de_ancient",
+      name: "Ancient",
+    },
+    {
+      wKey: "total_wins_map_de_anubis",
+      rKey: "total_rounds_map_de_anubis",
+      name: "Anubis",
+    },
+    {
       wKey: "total_wins_map_de_vertigo",
       rKey: "total_rounds_map_de_vertigo",
       name: "Vertigo",
@@ -115,64 +140,90 @@ export default function CS2Stats({ stats }: Props) {
       rKey: "total_rounds_map_de_cbble",
       name: "Cobblestone",
     },
-    { wKey: "total_wins_map_de_aztec", rKey: null, name: "Aztec" },
-    // Note: mirage, overpass, ancient, anubis have no total_rounds_map_* confirmed
-    // but total_wins_map_* exist for some — include with 0 rounds as fallback
   ]
-    .map((m) => ({
-      name: m.name,
-      wins: getStat(stats, m.wKey),
-      rounds: m.rKey ? getStat(stats, m.rKey) : 0,
-    }))
-    .filter((m) => m.wins > 0)
-    .sort((a, b) => b.wins - a.wins);
+    .map((m) => {
+      const wonRounds = getStat(stats, m.wKey);
+      const totalRounds = getStat(stats, m.rKey);
+
+      return {
+        name: m.name,
+        wonRounds,
+        totalRounds,
+        winRate:
+          totalRounds > 0 ? Math.round((wonRounds / totalRounds) * 100) : 0,
+      };
+    })
+    .filter((m) => m.wonRounds > 0 || m.totalRounds > 0)
+    .sort((a, b) => b.totalRounds - a.totalRounds);
 
   const mxW = weapons.length ? weapons[0].val : 1;
-  const mxM = mapList.length ? mapList[0].wins : 1;
+  const mxM = maps.length ? Math.max(...maps.map((m) => m.totalRounds)) : 1;
+  // const maps = [
+  //   {
+  //     wKey: "total_wins_map_de_dust2",
+  //     rKey: "total_rounds_map_de_dust2",
+  //     name: "Dust2",
+  //   },
+  //   {
+  //     wKey: "total_wins_map_de_inferno",
+  //     rKey: "total_rounds_map_de_inferno",
+  //     name: "Inferno",
+  //   },
+  //   {
+  //     wKey: "total_wins_map_de_nuke",
+  //     rKey: "total_rounds_map_de_nuke",
+  //     name: "Nuke",
+  //   },
+  //   {
+  //     wKey: "total_wins_map_de_train",
+  //     rKey: "total_rounds_map_de_train",
+  //     name: "Train",
+  //   },
+  //   {
+  //     wKey: "total_wins_map_de_vertigo",
+  //     rKey: "total_rounds_map_de_vertigo",
+  //     name: "Vertigo",
+  //   },
+  //   {
+  //     wKey: "total_wins_map_de_cbble",
+  //     rKey: "total_rounds_map_de_cbble",
+  //     name: "Cobblestone",
+  //   },
+  //   // Mirage, Overpass, Ancient, Anubis — нет ключей wins/rounds в Steam API
+  //   // Есть только для старых карт из CS:GO эпохи
+  // ]
+  //   .map((m) => ({
+  //     name: m.name,
+  //     wins: getStat(stats, m.wKey),
+  //     rounds: getStat(stats, m.rKey),
+  //   }))
+  //   .filter((m) => m.wins > 0 || m.rounds > 0)
+  //   .sort((a, b) => b.wins + b.rounds - (a.wins + a.rounds));
+
+  // const mxW = weapons.length ? weapons[0].val : 1;
+  // const mxM = maps.length ? Math.max(...maps.map((m) => m.wins)) : 1;
 
   const statCards = [
     {
       label: t.statKD,
-      val: kdStr,
+      val: kd.toFixed(2),
       sub: `${kills.toLocaleString()} ${t.kills} / ${deaths.toLocaleString()} ${t.deaths}`,
       cls: kdCls,
     },
     {
       label: t.statHS,
-      val: `${hsPct}%`,
+      val: `${Math.round(hsPct)}%`,
       sub: `${hsKills.toLocaleString()} / ${kills.toLocaleString()}`,
       cls: hsCls,
     },
     {
       label: t.statWR,
-      val: matchesPlay > 0 ? `${wr}%` : "—",
-      sub: `${matchesWon.toLocaleString()} / ${matchesPlay.toLocaleString()} матчей`,
+      val: matchesPlay > 0 ? `${Math.round(wr)}%` : "—",
+      sub: `${matchesWon.toLocaleString()} / ${matchesPlay.toLocaleString()}`,
       cls: wrCls,
     },
-    {
-      label: t.statADR,
-      val: String(adr),
-      sub: `${dmgDone.toLocaleString()} ${t.damageRound}`,
-      cls: adrCls,
-    },
-    {
-      label: t.statACC,
-      val: `${acc}%`,
-      sub: `${shotsHit.toLocaleString()} / ${shotsFired.toLocaleString()} ${t.hits}`,
-      cls: "",
-    },
-    {
-      label: t.statMVP,
-      val: mvps.toLocaleString(),
-      sub: t.stars,
-      cls: "",
-    },
-    {
-      label: t.statHours,
-      val: hrs.toLocaleString(),
-      sub: t.playtime,
-      cls: "",
-    },
+    { label: t.statMVP, val: mvps.toLocaleString(), sub: t.stars, cls: "" },
+    { label: t.statHours, val: hrs.toLocaleString(), sub: t.playtime, cls: "" },
     {
       label: t.statBombs,
       val: bombsPlant.toLocaleString(),
@@ -188,7 +239,6 @@ export default function CS2Stats({ stats }: Props) {
         <div className="sec-divider-line" />
       </div>
 
-      {/* Stat cards */}
       <div
         className="stagger"
         style={{
@@ -207,7 +257,6 @@ export default function CS2Stats({ stats }: Props) {
         ))}
       </div>
 
-      {/* Bar charts */}
       <div
         style={{
           display: "grid",
@@ -223,8 +272,8 @@ export default function CS2Stats({ stats }: Props) {
             max={mxW}
           />
         )}
-        {mapList.length > 0 && (
-          <MapBarCard title={t.barMaps} maps={mapList} max={mxM} />
+        {maps.length > 0 && (
+          <MapBarCard title={t.barMaps} maps={maps} max={mxM} />
         )}
       </div>
     </div>
@@ -235,12 +284,10 @@ function BarCard({
   title,
   items,
   max,
-  colors,
 }: {
   title: string;
   items: { name: string; val: number }[];
   max: number;
-  colors?: string[];
 }) {
   return (
     <div
@@ -268,7 +315,7 @@ function BarCard({
           key={item.name}
           style={{
             display: "grid",
-            gridTemplateColumns: "120px 1fr 56px",
+            gridTemplateColumns: "130px 1fr 56px",
             alignItems: "center",
             gap: 12,
             marginBottom: 12,
@@ -288,7 +335,7 @@ function BarCard({
           </div>
           <div className="bar-track">
             <div
-              className={`bar-fill${colors?.[i] ? ` ${colors[i]}` : ""}`}
+              className="bar-fill"
               style={{ width: `${Math.round((item.val / max) * 100)}%` }}
             />
           </div>
@@ -308,14 +355,18 @@ function BarCard({
   );
 }
 
-// Map bar card — shows wins + rounds played per map
 function MapBarCard({
   title,
   maps,
   max,
 }: {
   title: string;
-  maps: { name: string; wins: number; rounds: number }[];
+  maps: {
+    name: string;
+    wonRounds: number;
+    totalRounds: number;
+    winRate: number;
+  }[];
   max: number;
 }) {
   return (
@@ -339,13 +390,15 @@ function MapBarCard({
       >
         {title}
       </div>
+
       {maps.map((m, i) => {
+        const colors = ["", "blue", "green", "teal", "purple", "blue"];
         return (
-          <div key={m.name} style={{ marginBottom: 14 }}>
+          <div key={m.name} style={{ marginBottom: 16 }}>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "120px 1fr 56px",
+                gridTemplateColumns: "130px 1fr 70px",
                 alignItems: "center",
                 gap: 12,
                 marginBottom: 4,
@@ -356,19 +409,20 @@ function MapBarCard({
                   fontSize: 13,
                   color: "var(--text2)",
                   textAlign: "right",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
                 }}
               >
                 {m.name}
               </div>
+
               <div className="bar-track">
                 <div
-                  className={`bar-fill${["", "blue", "green", "teal", "purple", "blue", "green", "blue"][i] ? ` ${["", "blue", "green", "teal", "purple", "blue", "green", "blue"][i]}` : ""}`}
-                  style={{ width: `${Math.round((m.wins / max) * 100)}%` }}
+                  className={`bar-fill${colors[i] ? ` ${colors[i]}` : ""}`}
+                  style={{
+                    width: `${Math.round((m.totalRounds / max) * 100)}%`,
+                  }}
                 />
               </div>
+
               <div
                 style={{
                   fontFamily: "Share Tech Mono, monospace",
@@ -377,30 +431,28 @@ function MapBarCard({
                   textAlign: "right",
                 }}
               >
-                {m.wins.toLocaleString()}
+                {m.wonRounds.toLocaleString()}
               </div>
             </div>
-            {m.rounds > 0 && (
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "130px 1fr",
+                gap: 12,
+              }}
+            >
+              <div />
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "120px 1fr",
-                  gap: 12,
-                  paddingLeft: 0,
+                  fontSize: 11,
+                  color: "var(--text3)",
+                  letterSpacing: "0.04em",
                 }}
               >
-                <div />
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "var(--text3)",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  {m.rounds.toLocaleString()} rounds
-                </div>
+                {m.totalRounds.toLocaleString()} rounds · {m.winRate}% round WR
               </div>
-            )}
+            </div>
           </div>
         );
       })}
