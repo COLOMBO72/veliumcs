@@ -139,40 +139,40 @@ function LevelImage({ level, size = 72 }: { level: number; size?: number }) {
   return <LevelCircle level={level} size={size} />;
 }
 
-// // ── Fallback hex level icon ─────────────────────────────────
-function LevelFallback({ level }: { level: number }) {
-  const c =
-    level <= 2
-      ? "#8a8a8a"
-      : level <= 4
-        ? "#1eff00"
-        : level <= 6
-          ? "#00b4ff"
-          : level <= 8
-            ? "#a855f7"
-            : "#ff5500";
-  return (
-    <svg width="64" height="64" viewBox="0 0 64 64">
-      <polygon
-        points="32,4 60,20 60,44 32,60 4,44 4,20"
-        fill="none"
-        stroke={c}
-        strokeWidth="2"
-      />
-      <text
-        x="32"
-        y="38"
-        textAnchor="middle"
-        fontFamily="Rajdhani,sans-serif"
-        fontWeight="700"
-        fontSize="22"
-        fill={c}
-      >
-        {level}
-      </text>
-    </svg>
-  );
-}
+// // // ── Fallback hex level icon ─────────────────────────────────
+// function LevelFallback({ level }: { level: number }) {
+//   const c =
+//     level <= 2
+//       ? "#8a8a8a"
+//       : level <= 4
+//         ? "#1eff00"
+//         : level <= 6
+//           ? "#00b4ff"
+//           : level <= 8
+//             ? "#a855f7"
+//             : "#ff5500";
+//   return (
+//     <svg width="64" height="64" viewBox="0 0 64 64">
+//       <polygon
+//         points="32,4 60,20 60,44 32,60 4,44 4,20"
+//         fill="none"
+//         stroke={c}
+//         strokeWidth="2"
+//       />
+//       <text
+//         x="32"
+//         y="38"
+//         textAnchor="middle"
+//         fontFamily="Rajdhani,sans-serif"
+//         fontWeight="700"
+//         fontSize="22"
+//         fill={c}
+//       >
+//         {level}
+//       </text>
+//     </svg>
+//   );
+// }
 
 // ── Stat row helper ─────────────────────────────────────────
 function StatRow({

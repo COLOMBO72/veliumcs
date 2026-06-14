@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CS2Stat } from "../types";
 import { getStat } from "../utils";
 
@@ -49,14 +49,14 @@ function scoreLabel(score: number): string {
 }
 
 export default function CheatMeter({ stats }: Props) {
-  const barRef = useRef<HTMLDivElement>(null);
+  // const barRef = useRef<HTMLDivElement>(null);
   const [animated, setAnimated] = useState(false);
 
   const kills = getStat(stats, "total_kills");
   const hs = getStat(stats, "total_kills_headshot");
   const blinded = getStat(stats, "total_kills_enemy_blinded");
   const vsZoomed = getStat(stats, "total_kills_against_zoomed_sniper");
-  const enemyWep = getStat(stats, "total_kills_enemy_weapon");
+  // const enemyWep = getStat(stats, "total_kills_enemy_weapon");
   const shotsFired = getStat(stats, "total_shots_fired");
   const shotsHit = getStat(stats, "total_shots_hit");
   const matchesWon = getStat(stats, "total_matches_won");

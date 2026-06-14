@@ -10,7 +10,7 @@ import CS2Stats from "./components/CS2Stats";
 import FaceitPanel from "./components/FaceitPanel";
 import TgBanner from "./components/TgBanner";
 import SeoSection from "./components/SeoSection";
-import CheatMeter from "./components/CheatMeter";
+// import CheatMeter from "./components/CheatMeter";
 import SupportBanner from "./components/SupportBanner";
 import PlayerRating from "./components/PlayerRating";
 import ComparePage from "./components/ComparePage";

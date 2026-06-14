@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+// import { useEffect, useRef } from "react";
 import type { CS2Stat } from "../types";
 import { getStat } from "../utils";
 import { useLang } from "../useLang";
@@ -14,21 +14,17 @@ export default function CS2Stats({ stats }: Props) {
   const deaths = getStat(stats, "total_deaths");
   const matchesWon = getStat(stats, "total_matches_won");
   const matchesPlay = getStat(stats, "total_matches_played");
-  const roundsPlay = getStat(stats, "total_rounds_played");
   const hsKills = getStat(stats, "total_kills_headshot");
   const mvps = getStat(stats, "total_mvps");
-  const dmgDone = getStat(stats, "total_damage_done");
-  const shotsFired = getStat(stats, "total_shots_fired");
-  const shotsHit = getStat(stats, "total_shots_hit");
   const timePlayed = getStat(stats, "total_time_played");
   const bombsPlant = getStat(stats, "total_planted_bombs");
   const bombsDefu = getStat(stats, "total_defused_bombs");
 
   // Читерство-релевантные
-  const killsBlinded = getStat(stats, "total_kills_enemy_blinded"); // убийства ослеплённых
-  const killsZoomed = getStat(stats, "total_kills_against_zoomed_sniper"); // убийства vs AWP
-  const killsEnemyWep = getStat(stats, "total_kills_enemy_weapon"); // чужим оружием
-  const knifeFights = getStat(stats, "total_kills_knife_fight");
+  // const killsBlinded = getStat(stats, "total_kills_enemy_blinded"); // убийства ослеплённых
+  // const killsZoomed = getStat(stats, "total_kills_against_zoomed_sniper"); // убийства vs AWP
+  // const killsEnemyWep = getStat(stats, "total_kills_enemy_weapon"); // чужим оружием
+  // const knifeFights = getStat(stats, "total_kills_knife_fight");
 
   const kd = deaths > 0 ? kills / deaths : 0;
   const kdCls = kd >= 1.5 ? "good" : kd < 1 ? "danger" : "";
@@ -42,17 +38,6 @@ export default function CS2Stats({ stats }: Props) {
       : 0;
 
   const wrCls = wr >= 55 ? "good" : wr >= 50 ? "warn" : "";
-
-  const adrRaw = roundsPlay > 0 && dmgDone > 0 ? dmgDone / roundsPlay : 0;
-
-  const adr = adrRaw > 0 && adrRaw < 200 ? adrRaw : 0;
-
-  const adrCls = adr >= 90 ? "good" : adr >= 70 ? "warn" : "";
-
-  const acc =
-    shotsFired > 0 && shotsHit <= shotsFired
-      ? (shotsHit / shotsFired) * 100
-      : 0;
 
   const hrs = timePlayed > 0 ? Math.round(timePlayed / 3600) : 0;
   // ── Weapons ──
@@ -310,7 +295,7 @@ function BarCard({
       >
         {title}
       </div>
-      {items.map((item, i) => (
+      {items.map((item) => (
         <div
           key={item.name}
           style={{
