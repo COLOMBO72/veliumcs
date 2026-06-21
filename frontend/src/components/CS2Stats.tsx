@@ -5,9 +5,10 @@ import { useLang } from "../useLang";
 
 interface Props {
   stats: CS2Stat[];
+  cs2HoursReal?: number | null;
 }
 
-export default function CS2Stats({ stats }: Props) {
+export default function CS2Stats({ stats, cs2HoursReal }: Props) {
   const { t } = useLang();
 
   const kills = getStat(stats, "total_kills");
@@ -39,7 +40,7 @@ export default function CS2Stats({ stats }: Props) {
 
   const wrCls = wr >= 55 ? "good" : wr >= 50 ? "warn" : "";
 
-  const hrs = timePlayed > 0 ? Math.round(timePlayed / 3600) : 0;
+  const hrs = cs2HoursReal ?? Math.round(timePlayed / 3600);
   // ── Weapons ──
   const weapons = [
     { key: "total_kills_ak47", name: "AK-47" },

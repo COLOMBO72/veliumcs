@@ -98,6 +98,7 @@ export interface PlayerData {
   faceitMaps: FaceitSegment[] | null;
   faceitCsgoStats: FaceitStats | null;
   ratings: Ratings | null;
+  cs2HoursReal: number | null;
   viewCount: number;
   tgLinked: { username: string | null; linkedAt: string } | null;
 }

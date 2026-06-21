@@ -11,6 +11,7 @@ import FaceitPanel from "./components/FaceitPanel";
 import TgBanner from "./components/TgBanner";
 import SeoSection from "./components/SeoSection";
 // import CheatMeter from "./components/CheatMeter";
+import ProfileCards from "./components/ProfileCards";
 import SupportBanner from "./components/SupportBanner";
 import PlayerRating from "./components/PlayerRating";
 import ComparePage from "./components/ComparePage";
@@ -116,15 +117,11 @@ function HomePage() {
       handleSearch(urlSlug, false);
       return;
     }
-    // Restore last viewed profile on refresh
-    const saved = sessionStorage.getItem("veliumcs_last_id64");
-    if (saved) {
-      history.replaceState({}, "", `/player/${saved}`);
-      handleSearch(saved, false);
-      return;
-    }
+    // НЕ восстанавливаем из sessionStorage если URL чистый /
+    // Пользователь сам стёр URL — показываем главную
+    sessionStorage.removeItem("veliumcs_last_id64");
     track("page_view", { type: "home" });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line
 
   // Browser back/forward
   useEffect(() => {
@@ -133,15 +130,16 @@ function HomePage() {
       if (slug) {
         handleSearch(slug, false);
       } else {
+        // Пользователь вернулся на / — чистим всё
         setData(null);
         setError("");
         sessionStorage.removeItem("veliumcs_last_id64");
+        document.title = "VELIUMCS — CS2 Player Stats & FACEIT ELO Tracker";
       }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [handleSearch]);
-
   // Page title
   useEffect(() => {
     if (!data) {
@@ -276,6 +274,15 @@ function HomePage() {
             viewCount={data.viewCount}
             tgLinked={data.tgLinked}
           />
+          {/* Three-card summary row */}
+          <ProfileCards
+            profile={data.profile}
+            bans={data.bans}
+            faceit={data.faceit}
+            faceitStats={data.faceitStats}
+            cs2stats={data.cs2stats}
+            cs2HoursReal={data.cs2HoursReal}
+          />
 
           {/* Cheat meter — показывать только если есть CS2 stats */}
           {/* {data.cs2stats && data.cs2stats.length > 0 && (
@@ -314,7 +321,7 @@ function HomePage() {
 
           {/* CS2 stats second */}
           {data.cs2stats && data.cs2stats.length > 0 ? (
-            <CS2Stats stats={data.cs2stats} />
+            <CS2Stats stats={data.cs2stats} cs2HoursReal={data.cs2HoursReal} />
           ) : (
             <div>
               <div className="sec-divider">

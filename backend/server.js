@@ -163,17 +163,22 @@ app.get("/api/player/:steamid64", async (req, res) => {
     }
 
     // ── Steam calls ──
-    const [summaryData, banData, statsData] = await Promise.allSettled([
-      steamGet(
-        `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${STEAM_KEY}&steamids=${steamid64}`,
-      ),
-      steamGet(
-        `https://api.steampowered.com/ISteamUser/GetPlayerBans/v1/?key=${STEAM_KEY}&steamids=${steamid64}`,
-      ),
-      steamGet(
-        `https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/?appid=730&key=${STEAM_KEY}&steamid=${steamid64}`,
-      ),
-    ]);
+    const [summaryData, banData, statsData, ownedData] =
+      await Promise.allSettled([
+        steamGet(
+          `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${STEAM_KEY}&steamids=${steamid64}`,
+        ),
+        steamGet(
+          `https://api.steampowered.com/ISteamUser/GetPlayerBans/v1/?key=${STEAM_KEY}&steamids=${steamid64}`,
+        ),
+        steamGet(
+          `https://api.steampowered.com/ISteamUserStats/GetUserStatsForGame/v2/?appid=730&key=${STEAM_KEY}&steamid=${steamid64}`,
+        ),
+        // GetOwnedGames даёт точное время запуска игры в минутах (как в Steam профиле)
+        steamGet(
+          `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=${STEAM_KEY}&steamid=${steamid64}&appids_filter[0]=730&include_appinfo=false&include_played_free_games=true`,
+        ),
+      ]);
 
     const profile = summaryData.value?.response?.players?.[0] ?? null;
     if (!profile)
@@ -181,6 +186,13 @@ app.get("/api/player/:steamid64", async (req, res) => {
 
     const bans = banData.value?.players?.[0] ?? {};
     const stats = statsData.value?.playerstats?.stats ?? null;
+    // playtime_forever в минутах → часы (это то что показывает Steam профиль)
+    const cs2Game = ownedData.value?.response?.games?.find(
+      (g) => g.appid === 730,
+    );
+    const cs2HoursReal = cs2Game
+      ? Math.round(cs2Game.playtime_forever / 60)
+      : null;
     if (stats) {
       console.log("=== STEAM CS2 STATS KEYS ===");
       console.log("Total keys:", stats.length);
@@ -274,11 +286,13 @@ app.get("/api/player/:steamid64", async (req, res) => {
             if (r.status !== "fulfilled" || !r.value) return;
             const rounds = r.value?.rounds ?? [];
             if (!rounds.length) return;
-            const matchId = historyItems[i].match_id;
-            for (const team of rounds[0].teams ?? []) {
-              const player = (team.players ?? []).find(
-                (p) => p.player_id === pid,
-              );
+            const round = rounds[0];
+            if (!round?.teams?.length) return;
+            const matchId = historyItems[i]?.match_id;
+            if (!matchId) return;
+            for (const team of round.teams) {
+              if (!team?.players?.length) continue;
+              const player = team.players.find((p) => p.player_id === pid);
               if (player) {
                 statsFor20.push(player.player_stats);
                 playerMatchStats[matchId] = player.player_stats;
@@ -342,10 +356,11 @@ app.get("/api/player/:steamid64", async (req, res) => {
               if (r.status !== "fulfilled" || !r.value) return;
               const rounds = r.value?.rounds ?? [];
               if (!rounds.length) return;
-              for (const team of rounds[0].teams ?? []) {
-                const player = (team.players ?? []).find(
-                  (p) => p.player_id === pid,
-                );
+              const round = rounds[0];
+              if (!round?.teams?.length) return;
+              for (const team of round.teams) {
+                if (!team?.players?.length) continue;
+                const player = team.players.find((p) => p.player_id === pid);
                 if (player) statsFor20.push(player.player_stats);
               }
             });
@@ -364,6 +379,7 @@ app.get("/api/player/:steamid64", async (req, res) => {
     const payload = {
       profile,
       bans,
+      cs2HoursReal,
       cs2stats: stats,
       faceit: faceitPlayer,
       faceitStats,
